@@ -3,7 +3,11 @@ import java.net.*;
 import java.awt.*;
 import java.awt.event.*;
 import javax.swing.*;
+import java.util.List;
+import java.util.ArrayList;
 import java.util.*;
+import java.awt.*;
+
 
 public class ServidorChat extends JFrame {
 
