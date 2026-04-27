@@ -1,0 +1,13 @@
+{
+  "name": "chat-rxjs",
+  "version": "1.0.0",
+  "description": "Chat reactivo con RxJS — equivalente al chat Java con Sockets",
+  "main": "servidor.js",
+  "scripts": {
+    "start": "node servidor.js"
+  },
+  "dependencies": {
+    "rxjs": "^7.8.1",
+    "ws": "^8.17.0"
+  }
+}

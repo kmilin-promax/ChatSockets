@@ -1,0 +1,285 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Chat Cliente - RxJS</title>
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;600;700&display=swap');
+    :root {
+      --bg:      #0b0b18; --panel:   #11111f; --surface: #191928;
+      --border:  #2a2a4a; --accent:  #00ffa3; --accent2: #0096ff;
+      --danger:  #ff3f5a; --warn:    #ffc44a; --text:    #cdd5f0;
+      --dim:     #666890; --r: 6px;
+      --font: 'JetBrains Mono', monospace;
+    }
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      background: var(--bg); color: var(--text);
+      font-family: var(--font); height: 100dvh;
+      display: flex; align-items: center; justify-content: center;
+    }
+    .app {
+      width: min(560px, 100vw); height: min(720px, 100dvh);
+      background: var(--panel); border: 1px solid var(--border);
+      border-radius: var(--r); display: flex; flex-direction: column;
+      overflow: hidden; box-shadow: 0 0 40px rgba(0,255,163,.07);
+    }
+    .header {
+      padding: 14px 18px 10px; border-bottom: 1px solid var(--border);
+      display: flex; align-items: center; justify-content: space-between; flex-shrink: 0;
+    }
+    .title { font-size: 15px; font-weight: 700; color: var(--accent); letter-spacing: .08em; }
+    .status { font-size: 11px; color: var(--danger); display: flex; align-items: center; gap: 5px; }
+    .status.on { color: var(--accent); }
+    .dot { width: 7px; height: 7px; border-radius: 50%; background: currentColor; box-shadow: 0 0 6px currentColor; }
+    .conexion {
+      padding: 10px 18px; border-bottom: 1px solid var(--border);
+      display: flex; gap: 8px; flex-shrink: 0;
+    }
+    input {
+      flex: 1; background: var(--surface); border: 1px solid var(--border);
+      border-radius: var(--r); color: var(--text); font-family: var(--font);
+      font-size: 12px; padding: 8px 12px; outline: none; transition: border-color .2s;
+    }
+    input:focus { border-color: var(--accent2); }
+    input::placeholder { color: var(--dim); }
+    button {
+      border: none; border-radius: var(--r); font-family: var(--font);
+      font-weight: 700; font-size: 11px; letter-spacing: .06em;
+      padding: 8px 14px; cursor: pointer; transition: filter .15s; white-space: nowrap;
+    }
+    button:hover:not(:disabled) { filter: brightness(1.2); }
+    button:disabled { opacity: .35; cursor: default; }
+    .btn-verde { background: var(--accent);  color: #000; }
+    .btn-rojo  { background: var(--danger);  color: #fff; }
+    .btn-azul  { background: var(--accent2); color: #fff; }
+    .btn-gris  { background: #2a2a4a;        color: var(--text); }
+    .centro { flex: 1; display: flex; overflow: hidden; }
+    .mensajes {
+      flex: 1; overflow-y: auto; padding: 12px 16px;
+      display: flex; flex-direction: column; gap: 3px;
+      scrollbar-width: thin; scrollbar-color: var(--border) transparent;
+    }
+    .msg {
+      font-size: 12px; line-height: 1.6; padding: 2px 6px;
+      border-radius: 3px; word-break: break-word;
+      animation: fi .15s ease;
+    }
+    @keyframes fi { from { opacity:0; transform:translateY(3px); } to { opacity:1; transform:translateY(0); } }
+    .msg.sistema { color: var(--dim); font-style: italic; }
+    .msg.entrada { color: var(--accent); }
+    .msg.salida  { color: var(--danger); }
+    .msg.yo      { color: #fff; background: rgba(0,150,255,.12); border-left: 2px solid var(--accent2); padding-left: 8px; }
+    .msg.otro    { color: var(--text); }
+    .msg.aviso   { color: var(--warn); }
+    .usuarios {
+      width: 130px; border-left: 1px solid var(--border);
+      padding: 10px; overflow-y: auto; flex-shrink: 0;
+    }
+    .us-titulo {
+      font-size: 10px; color: var(--dim); letter-spacing: .1em;
+      text-transform: uppercase; margin-bottom: 8px;
+      padding-bottom: 6px; border-bottom: 1px solid var(--border);
+    }
+    .us-item {
+      font-size: 11px; color: var(--accent); padding: 3px 0;
+      white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+    }
+    .us-item::before { content: '> '; color: var(--dim); }
+    .envio {
+      padding: 10px 18px; border-top: 1px solid var(--border);
+      display: flex; gap: 8px; flex-shrink: 0;
+    }
+    .envio input { flex: 1; }
+    .btns { display: flex; gap: 6px; }
+  </style>
+</head>
+<body>
+<div class="app">
+  <div class="header">
+    <span class="title">&#x1F4AC; CHAT RXJS</span>
+    <span class="status" id="status">
+      <span class="dot"></span>
+      <span id="status-txt">Desconectado</span>
+    </span>
+  </div>
+  <div class="conexion">
+    <input id="inp-nombre" type="text" placeholder="Tu alias..." autocomplete="off"/>
+    <button class="btn-verde" id="btn-conectar">CONECTAR</button>
+  </div>
+  <div class="centro">
+    <div class="mensajes" id="mensajes"></div>
+    <div class="usuarios">
+      <div class="us-titulo">En linea</div>
+      <div id="lista-us"></div>
+    </div>
+  </div>
+  <div class="envio">
+    <input id="inp-msg" type="text" placeholder="Escribe un mensaje..." disabled autocomplete="off"/>
+    <div class="btns">
+      <button class="btn-azul" id="btn-enviar" disabled>ENVIAR &gt;</button>
+      <button class="btn-gris" id="btn-salir">SALIR</button>
+    </div>
+  </div>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/rxjs/7.8.1/rxjs.umd.min.js"></script>
+<script>
+window.addEventListener('load', function () {
+
+  // --- RxJS ---
+  var Subject   = rxjs.Subject;
+  var fromEvent = rxjs.fromEvent;
+  var filter    = rxjs.operators.filter;
+  var map       = rxjs.operators.map;
+  var takeUntil = rxjs.operators.takeUntil;
+
+  // --- DOM ---
+  var inpNombre   = document.getElementById('inp-nombre');
+  var inpMsg      = document.getElementById('inp-msg');
+  var btnConectar = document.getElementById('btn-conectar');
+  var btnEnviar   = document.getElementById('btn-enviar');
+  var btnSalir    = document.getElementById('btn-salir');
+  var statusEl    = document.getElementById('status');
+  var statusTxt   = document.getElementById('status-txt');
+  var mensajesEl  = document.getElementById('mensajes');
+  var listaUsEl   = document.getElementById('lista-us');
+
+  // --- Estado ---
+  var socket   = null;
+  var miNombre = '';
+
+  // --- Helpers ---
+  function msg(texto, clase) {
+    var d = document.createElement('div');
+    d.className = 'msg ' + (clase || 'otro');
+    d.textContent = texto;
+    mensajesEl.appendChild(d);
+    mensajesEl.scrollTop = mensajesEl.scrollHeight;
+  }
+
+  function setUI(conectado, nombre) {
+    statusEl.className  = 'status' + (conectado ? ' on' : '');
+    statusTxt.textContent = conectado ? ('● ' + nombre) : '● Desconectado';
+    btnConectar.textContent = conectado ? 'DESCONECTAR' : 'CONECTAR';
+    btnConectar.className   = conectado ? 'btn-rojo' : 'btn-verde';
+    inpNombre.disabled  = conectado;
+    inpMsg.disabled     = !conectado;
+    btnEnviar.disabled  = !conectado;
+    if (conectado) inpMsg.focus();
+  }
+
+  function setUsuarios(lista) {
+    listaUsEl.innerHTML = '';
+    lista.forEach(function (u) {
+      var d = document.createElement('div');
+      d.className = 'us-item';
+      d.textContent = u;
+      listaUsEl.appendChild(d);
+    });
+  }
+
+  // --- Conectar ---
+  function conectar() {
+    var nombre = inpNombre.value.trim();
+    if (!nombre) { msg('Escribe un alias primero.', 'aviso'); return; }
+
+    msg('Conectando...', 'sistema');
+
+    socket = new WebSocket('ws://localhost:3000');
+
+    var muerto$ = new Subject();
+
+    // OPEN
+    socket.addEventListener('open', function () {
+      msg('Conexion abierta. Registrando alias...', 'sistema');
+      socket.send(JSON.stringify({ tipo: 'registro', nombre: nombre }));
+    });
+
+    // MESSAGE — usando addEventListener nativo del browser, sin fromEvent para evitar problemas
+    socket.addEventListener('message', function (event) {
+      var data;
+      try { data = JSON.parse(event.data); }
+      catch (e) { console.warn('JSON invalido:', event.data); return; }
+
+      if (data.tipo === 'bienvenida') {
+        miNombre = data.nombre;
+        setUI(true, miNombre);
+        msg('Conectado como ' + miNombre, 'entrada');
+
+      } else if (data.tipo === 'mensaje') {
+        var texto = data.texto;
+        if (texto.indexOf('[' + miNombre + ']:') === 0) {
+          msg(texto, 'yo');
+        } else if (texto.charAt(0) === '\u2714') {
+          msg(texto, 'entrada');
+        } else if (texto.charAt(0) === '\u26a0') {
+          msg(texto, 'salida');
+        } else {
+          msg(texto, 'otro');
+        }
+
+      } else if (data.tipo === 'usuarios') {
+        setUsuarios(data.lista);
+      }
+    });
+
+    // ERROR
+    socket.addEventListener('error', function () {
+      msg('ERROR: No se pudo conectar. Asegurate de que "node servidor.js" este corriendo.', 'aviso');
+      setUI(false);
+      setUsuarios([]);
+      socket = null;
+    });
+
+    // CLOSE
+    socket.addEventListener('close', function (e) {
+      msg('Conexion cerrada (codigo ' + e.code + ').', 'aviso');
+      setUI(false);
+      setUsuarios([]);
+      socket = null;
+      muerto$.next(); muerto$.complete();
+    });
+
+    // Suscripcion RxJS para los botones mientras esta conectado
+    fromEvent(btnEnviar, 'click').pipe(takeUntil(muerto$))
+      .subscribe(function () { enviar(); });
+
+    fromEvent(inpMsg, 'keydown').pipe(
+      filter(function (e) { return e.key === 'Enter'; }),
+      takeUntil(muerto$)
+    ).subscribe(function () { enviar(); });
+  }
+
+  function enviar() {
+    if (!socket || socket.readyState !== WebSocket.OPEN) return;
+    var texto = inpMsg.value.trim();
+    if (!texto) return;
+    socket.send(JSON.stringify({ tipo: 'chat', texto: texto }));
+    inpMsg.value = '';
+  }
+
+  function salir() {
+    if (socket && socket.readyState === WebSocket.OPEN) {
+      socket.send(JSON.stringify({ tipo: 'chat', texto: '/salir' }));
+      socket.close();
+    }
+    setUI(false);
+    setUsuarios([]);
+    socket = null;
+  }
+
+  // Boton conectar/desconectar
+  btnConectar.addEventListener('click', function () {
+    if (socket && socket.readyState === WebSocket.OPEN) salir();
+    else conectar();
+  });
+
+  btnSalir.addEventListener('click', function () { salir(); });
+
+  msg('Listo. Escribe tu alias y pulsa CONECTAR.', 'sistema');
+});
+</script>
+</body>
+</html>
